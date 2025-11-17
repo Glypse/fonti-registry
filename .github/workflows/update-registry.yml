@@ -54,7 +54,7 @@ jobs:
 
             - name: Compress JSON
               if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last
-              run: brotli fonti_registry.json
+              run: brotli -f fonti_registry.json
 
             - name: Create GitHub release
               if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last
