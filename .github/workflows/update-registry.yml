@@ -1,0 +1,65 @@
+name: Update Registry
+
+on:
+    # schedule:
+    #     - cron: "0 0 * * *" # Daily at midnight UTC
+    workflow_dispatch: # Allow manual trigger
+
+jobs:
+    update:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Get latest commit from google/fonts
+              id: latest_commit
+              run: |
+                  LATEST=$(curl -s https://api.github.com/repos/google/fonts/commits/main | jq -r '.sha')
+                  echo "latest=$LATEST" >> $GITHUB_OUTPUT
+
+            - name: Read last processed commit
+              id: last_commit
+              run: |
+                  if [ -f last_commit.txt ]; then
+                    LAST=$(cat last_commit.txt)
+                  else
+                    LAST=""
+                  fi
+                  echo "last=$LAST" >> $GITHUB_OUTPUT
+
+            - name: Check for changes
+              if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last
+              run: echo "Upstream has changes, proceeding with update."
+
+            - name: Clone google/fonts
+              if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last
+              run: |
+                  git clone --depth 1 https://github.com/google/fonts.git google-fonts
+
+            - name: Install uv
+              if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last
+              run: |
+                  curl -LsSf https://astral.sh/uv/install.sh | sh
+                  echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+            - name: Install dependencies
+              if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last
+              run: uv sync
+
+            - name: Run registry script
+              if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last
+              run: uv run python registry.py
+
+            - name: Compress JSON
+              if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last
+              run: brotli fonti_registry.json
+
+            - name: Create GitHub release
+              if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  TAG="v$(date +%Y%m%d)-${{ steps.latest_commit.outputs.latest }}"
+                  gh release create "$TAG" --title "Registry update for commit ${{ steps.latest_commit.outputs.latest }}" fonti_registry.json.br
