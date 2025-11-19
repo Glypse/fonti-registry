@@ -1,5 +1,4 @@
 import json
-import subprocess
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -108,25 +107,9 @@ def main() -> None:
                 f"[green]Processed {font_name}: name='{name}', display_name='{display_name}', link='{link}'[/green]"
             )
 
-    # Get the current commit hash from the google-fonts repo
-    try:
-        commit = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=BASE_PATH,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-    except subprocess.CalledProcessError:
-        console.print("[red]Failed to get commit hash from google-fonts repo[/red]")
-        commit = ""
-
-    # Save the commit hash to a file
-    with open("last_commit.txt", "w", encoding="utf-8") as f:
-        f.write(commit)
-
     # Output the results to a JSON file
-    output_file = Path("fonti_registry.json")
+    output_file = Path(__file__).parent / "registry" / "fonti_registry.json"
+    output_file.parent.mkdir(parents=True, exist_ok=True)
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(font_data, f, separators=(",", ":"), indent=None)
         # json.dump(font_data, f, indent=4)
