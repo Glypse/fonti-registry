@@ -1,7 +1,9 @@
 import json
+import os
 from pathlib import Path
 from typing import Dict, Optional
 
+import httpx
 from bs4 import BeautifulSoup
 from rich.console import Console
 
@@ -108,6 +110,59 @@ def main() -> None:
                 font_data[dir_name][font_name]["display_name"] = display_name
             if link:
                 font_data[dir_name][font_name]["link"] = link
+
+            # Check source location
+            if link and "github.com/" in link:
+                parts = link.split("github.com/")[1].split("/")
+                if len(parts) >= 2:
+                    owner, repo = (
+                        parts[0],
+                        parts[1].split("#")[0].split("?")[0],
+                    )  # clean repo name
+                    token = os.getenv("GITHUB_TOKEN")
+                    headers = {"Authorization": f"token {token}"} if token else {}
+                    source = None
+                    try:
+                        # Check for releases
+                        resp = httpx.get(
+                            f"https://api.github.com/repos/{owner}/{repo}/releases",
+                            headers=headers,
+                            timeout=10,
+                        )
+                        if resp.status_code == 200 and resp.json():
+                            source = "a"
+                        else:
+                            # Check for fonts folder
+                            resp = httpx.get(
+                                f"https://api.github.com/repos/{owner}/{repo}/contents/fonts",
+                                headers=headers,
+                                timeout=10,
+                            )
+                            if resp.status_code == 200:
+                                source = "f"
+                            else:
+                                # Check root for font files
+                                resp = httpx.get(
+                                    f"https://api.github.com/repos/{owner}/{repo}/contents/",
+                                    headers=headers,
+                                    timeout=10,
+                                )
+                                if resp.status_code == 200:
+                                    contents = resp.json()
+                                    has_fonts = any(
+                                        item["name"].endswith(
+                                            (".otf", ".ttf", ".woff", ".woff2")
+                                        )
+                                        for item in contents
+                                        if item.get("type") == "file"
+                                    )
+                                    if has_fonts:
+                                        source = "r"
+                    except Exception:
+                        pass
+                    if source:
+                        font_data[dir_name][font_name]["source"] = source
+
             console.print(
                 f"[green]Processed {font_name}: name='{name}', "
                 f"display_name='{display_name}', link='{link}', category='{dir_name}'[/green]"
