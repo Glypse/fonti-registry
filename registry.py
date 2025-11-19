@@ -69,9 +69,9 @@ def get_metadata_entries(metadata_path: Path, entries: list[str]) -> list[str]:
 def main() -> None:
     """
     Main function to scan all font directories and build a JSON mapping
-    of font names to their metadata (name, display_name, and link).
+    of categories to font names with their metadata.
     """
-    font_data: Dict[str, Dict[str, str]] = {}
+    font_data: Dict[str, Dict[str, Dict[str, str]]] = {}
 
     for dir_name in DIRS:
         dir_path = BASE_PATH / dir_name
@@ -80,6 +80,9 @@ def main() -> None:
                 f"[yellow]Directory {dir_path} does not exist, skipping.[/yellow]"
             )
             continue
+
+        if dir_name not in font_data:
+            font_data[dir_name] = {}
 
         for subdir in dir_path.iterdir():
             if not subdir.is_dir():
@@ -98,23 +101,27 @@ def main() -> None:
             name = values[0]
             display_name = values[1]
 
-            font_data[font_name] = {
-                "name": name,
-                "display_name": display_name,
-                "link": link,
-            }
+            font_data[dir_name][font_name] = {}
+            if name:
+                font_data[dir_name][font_name]["name"] = name
+            if display_name:
+                font_data[dir_name][font_name]["display_name"] = display_name
+            if link:
+                font_data[dir_name][font_name]["link"] = link
             console.print(
-                f"[green]Processed {font_name}: name='{name}', display_name='{display_name}', link='{link}'[/green]"
+                f"[green]Processed {font_name}: name='{name}', "
+                f"display_name='{display_name}', link='{link}', category='{dir_name}'[/green]"
             )
 
     # Output the results to a JSON file
     output_file = Path(__file__).parent / "registry" / "fonti_registry.json"
     output_file.parent.mkdir(parents=True, exist_ok=True)
     with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(font_data, f, separators=(",", ":"), indent=None)
-        # json.dump(font_data, f, indent=4)
+        # json.dump(font_data, f, separators=(",", ":"), indent=None)
+        json.dump(font_data, f, indent=4)
 
-    console.print(f"[green]Saved {len(font_data)} fonts to {output_file}[/green]")
+    total_fonts = sum(len(category_fonts) for category_fonts in font_data.values())
+    console.print(f"[green]Saved {total_fonts} fonts to {output_file}[/green]")
 
 
 if __name__ == "__main__":
