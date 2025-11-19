@@ -14,6 +14,8 @@ jobs:
         steps:
             - name: Checkout repository
               uses: actions/checkout@v4
+              with:
+                  submodules: true
 
             - name: Get latest commit from google/fonts
               id: latest_commit
@@ -35,33 +37,50 @@ jobs:
               if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last
               run: echo "Upstream has changes, proceeding with update."
 
-            - name: Clone google/fonts
+            - name: Fetch submodule
               if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last
               run: |
-                  git clone --depth 1 https://github.com/google/fonts.git google-fonts
+                  cd google-fonts
+                  git fetch origin
+
+            - name: Check for relevant changes
+              if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last
+              id: check_changes
+              run: |
+                  cd google-fonts
+                  if git diff --name-only ${{ steps.last_commit.outputs.last }} origin/main | grep -qE '^(ofl|apache|ufl)/'; then
+                      echo "relevant=true" >> $GITHUB_OUTPUT
+                  else
+                      echo "relevant=false" >> $GITHUB_OUTPUT
+                  fi
+
+            - name: Update submodule
+              if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last && steps.check_changes.outputs.relevant == 'true'
+              run: git submodule update --remote google-fonts
+
+            - name: Set proceed flag
+              if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last && steps.check_changes.outputs.relevant == 'true'
+              run: echo "proceed=true" >> $GITHUB_ENV
 
             - name: Install uv
-              if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last
+              if: env.proceed == 'true'
               run: |
                   curl -LsSf https://astral.sh/uv/install.sh | sh
                   echo "$HOME/.local/bin" >> $GITHUB_PATH
 
             - name: Install dependencies
-              if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last
+              if: env.proceed == 'true'
               run: uv sync
 
             - name: Run registry script
-              if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last
+              if: env.proceed == 'true'
               run: uv run python registry.py
 
-            - name: Compress JSON
-              if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last
-              run: brotli -f fonti_registry.json
-
-            - name: Create GitHub release
-              if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            - name: Commit and push changes
+              if: env.proceed == 'true'
               run: |
-                  TAG="v$(date +%Y%m%d)-${{ steps.latest_commit.outputs.latest }}"
-                  gh release create "$TAG" --title "Registry update for commit ${{ steps.latest_commit.outputs.latest }}" fonti_registry.json.br
+                  git config --global user.name 'github-actions[bot]'
+                  git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+                  git add fonti_registry.json last_commit.txt
+                  git commit -m "Update registry for latest fonts (${{ steps.latest_commit.outputs.latest }})"
+                  git push
