@@ -14,8 +14,6 @@ jobs:
         steps:
             - name: Checkout repository
               uses: actions/checkout@v4
-              with:
-                  submodules: true
 
             - name: Get latest commit from google/fonts
               id: latest_commit
@@ -37,26 +35,28 @@ jobs:
               if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last
               run: echo "Upstream has changes, proceeding with update."
 
-            - name: Fetch submodule
-              if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last
-              run: |
-                  cd google-fonts
-                  git fetch origin
-
             - name: Check for relevant changes
               if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last
               id: check_changes
               run: |
-                  cd google-fonts
-                  if git diff --name-only ${{ steps.last_commit.outputs.last }} origin/main | grep -qE '^(ofl|apache|ufl)/'; then
+                  if [ "${{ steps.last_commit.outputs.last }}" != "" ]; then
+                    COMPARE_URL="https://api.github.com/repos/google/fonts/compare/${{ steps.last_commit.outputs.last }}...${{ steps.latest_commit.outputs.latest }}"
+                    if curl -s "$COMPARE_URL" | jq -r '.files[]?.filename' | grep -qE '^(ofl|apache|ufl)/'; then
                       echo "relevant=true" >> $GITHUB_OUTPUT
-                  else
+                    else
                       echo "relevant=false" >> $GITHUB_OUTPUT
+                    fi
+                  else
+                    echo "relevant=true" >> $GITHUB_OUTPUT
                   fi
 
-            - name: Update submodule
+            - name: Clone google/fonts with sparse checkout
               if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last && steps.check_changes.outputs.relevant == 'true'
-              run: git submodule update --remote google-fonts
+              run: |
+                  git clone --depth=1 --no-checkout https://github.com/google/fonts google-fonts
+                  cd google-fonts
+                  git sparse-checkout set --no-cone ofl apache ufl
+                  git checkout
 
             - name: Set proceed flag
               if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last && steps.check_changes.outputs.relevant == 'true'
