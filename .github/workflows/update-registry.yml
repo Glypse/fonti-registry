@@ -41,13 +41,18 @@ jobs:
               run: |
                   if [ "${{ steps.last_commit.outputs.last }}" != "" ]; then
                     COMPARE_URL="https://api.github.com/repos/google/fonts/compare/${{ steps.last_commit.outputs.last }}...${{ steps.latest_commit.outputs.latest }}"
-                    if curl -s "$COMPARE_URL" | jq -r '.files[]?.filename' | grep -qE '^(ofl|apache|ufl)/'; then
+                    CHANGED_FILES=$(curl -s "$COMPARE_URL" | jq -r '.files[]?.filename')
+                    RELEVANT_FILES=$(echo "$CHANGED_FILES" | grep -E '^(ofl|apache|ufl)/')
+                    if [ -n "$RELEVANT_FILES" ]; then
                       echo "relevant=true" >> $GITHUB_OUTPUT
+                      FONTS=$(echo "$RELEVANT_FILES" | awk -F'/' '{print $1 "/" $2}' | sort | uniq | tr '\n' ' ' | sed 's/ $//')
+                      echo "fonts=$FONTS" >> $GITHUB_OUTPUT
                     else
                       echo "relevant=false" >> $GITHUB_OUTPUT
                     fi
                   else
                     echo "relevant=true" >> $GITHUB_OUTPUT
+                    echo "fonts=all" >> $GITHUB_OUTPUT
                   fi
 
             - name: Clone google/fonts with sparse checkout
@@ -61,6 +66,10 @@ jobs:
             - name: Set proceed flag
               if: steps.latest_commit.outputs.latest != steps.last_commit.outputs.last && steps.check_changes.outputs.relevant == 'true'
               run: echo "proceed=true" >> $GITHUB_ENV
+
+            - name: Set fonts list
+              if: env.proceed == 'true'
+              run: echo "FONTS_LIST=${{ steps.check_changes.outputs.fonts }}" >> $GITHUB_ENV
 
             - name: Install uv
               if: env.proceed == 'true'
@@ -76,6 +85,7 @@ jobs:
               if: env.proceed == 'true'
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  FONTS_LIST: ${{ env.FONTS_LIST }}
               run: uv run python registry.py
 
             - name: Ensure last_commit.txt exists

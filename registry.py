@@ -9,6 +9,12 @@ from rich.console import Console
 
 console = Console()
 
+fonts_list_env = os.getenv("FONTS_LIST")
+if fonts_list_env and fonts_list_env != "all":
+    fonts_to_process = set(fonts_list_env.split())
+else:
+    fonts_to_process = None
+
 BASE_PATH = Path(__file__).parent / "google-fonts"
 DIRS = ["ofl", "apache", "ufl"]
 
@@ -73,7 +79,17 @@ def main() -> None:
     Main function to scan all font directories and build a JSON mapping
     of categories to font names with their metadata.
     """
+    output_file = Path(__file__).parent / "registry" / "fonti_registry.json"
     font_data: Dict[str, Dict[str, Dict[str, str]]] = {}
+    if fonts_to_process is not None:
+        # Load existing data
+        if output_file.exists():
+            with open(output_file, "r", encoding="utf-8") as f:
+                font_data = json.load(f)
+        # Ensure categories exist
+        for cat in DIRS:
+            if cat not in font_data:
+                font_data[cat] = {}
 
     for dir_name in DIRS:
         dir_path = BASE_PATH / dir_name
@@ -91,6 +107,9 @@ def main() -> None:
                 continue
 
             font_name = subdir.name
+            font_key = f"{dir_name}/{font_name}"
+            if fonts_to_process is not None and font_key not in fonts_to_process:
+                continue
             html_path = get_html_path(dir_name, font_name)
             link = ""
             if html_path:
@@ -169,7 +188,6 @@ def main() -> None:
             )
 
     # Output the results to a JSON file
-    output_file = Path(__file__).parent / "registry" / "fonti_registry.json"
     output_file.parent.mkdir(parents=True, exist_ok=True)
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(font_data, f, separators=(",", ":"), indent=None)
