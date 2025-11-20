@@ -164,8 +164,7 @@ def main() -> None:
                         font_data[dir_name][font_name]["source"] = source
 
             console.print(
-                f"[green]Processed {font_name}: name='{name}', "
-                f"display_name='{display_name}', link='{link}', category='{dir_name}'[/green]"
+                f"[green]Processed {font_name}: name='{name}', display_name='{display_name}', link='{link}', category='{dir_name}'[/green]"  # noqa: E501
             )
 
     # Output the results to a JSON file

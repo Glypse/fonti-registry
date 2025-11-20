@@ -78,6 +78,13 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: uv run python registry.py
 
+            - name: Ensure last_commit.txt exists
+              if: env.proceed == 'true'
+              run: |
+                  if [ ! -f last_commit.txt ]; then
+                    echo "${{ steps.latest_commit.outputs.latest }}" > last_commit.txt
+                  fi
+
             - name: Commit and push changes
               if: env.proceed == 'true'
               run: |
