@@ -112,6 +112,7 @@ def main() -> None:
                 font_data[dir_name][font_name]["link"] = link
 
             # Check source location
+            source = ""
             if link and "github.com/" in link:
                 parts = link.split("github.com/")[1].split("/")
                 if len(parts) >= 2:
@@ -121,7 +122,7 @@ def main() -> None:
                     )  # clean repo name
                     token = os.getenv("GITHUB_TOKEN")
                     headers = {"Authorization": f"token {token}"} if token else {}
-                    source = None
+                    source = ""
                     try:
                         # Check for releases
                         resp = httpx.get(
@@ -164,15 +165,15 @@ def main() -> None:
                         font_data[dir_name][font_name]["source"] = source
 
             console.print(
-                f"[green]Processed {font_name}: name='{name}', display_name='{display_name}', link='{link}', category='{dir_name}'[/green]"  # noqa: E501
+                f"[green]Processed {font_name}: name='{name}', display_name='{display_name}', category='{dir_name}', link='{link}', source='{source}'[/green]"  # noqa: E501
             )
 
     # Output the results to a JSON file
     output_file = Path(__file__).parent / "registry" / "fonti_registry.json"
     output_file.parent.mkdir(parents=True, exist_ok=True)
     with open(output_file, "w", encoding="utf-8") as f:
-        # json.dump(font_data, f, separators=(",", ":"), indent=None)
-        json.dump(font_data, f, indent=4)
+        json.dump(font_data, f, separators=(",", ":"), indent=None)
+        # json.dump(font_data, f, indent=4)
 
     total_fonts = sum(len(category_fonts) for category_fonts in font_data.values())
     console.print(f"[green]Saved {total_fonts} fonts to {output_file}[/green]")
